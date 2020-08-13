@@ -33,7 +33,10 @@ Fetchers coming soon...
 * Expected configuration elements:
   * `org.kubernetes.compliance_operator.mappings`
     * Dictionary (regulatory standard to target control ID) containing a list of XCCDF IDs
+  * `org.kubernetes.compliance_operator.target_cluster`
+    * Dictionary specifying target clusters. Currently, supported cluster categories are `kubernetes` and `ibm_cloud`.  Contents under `kubernetes` or `ibm_cloud` should be same as that of [Cluster List Fetcher][cluster-list-fetcher].  `region` of `ibm_cloud` category is optional.
 * Expected configuration:
+
   ```json
   {
     "org": {
@@ -49,9 +52,10 @@ Fetchers coming soon...
           },
           "target_cluster": {
             "ibm_cloud": {
-              "thinkdemo2020": [
+              "myaccount": [
                 {
-                  "name": "ROKS-OpenSCAP-1"
+                  "name": "mycluster",
+                  "region": "us-south"
                 }
               ]
             }
