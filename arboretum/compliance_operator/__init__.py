@@ -1,1 +1,0 @@
-"""Provider for compliance-operator."""
