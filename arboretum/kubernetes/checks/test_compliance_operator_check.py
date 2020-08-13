@@ -37,13 +37,16 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
                 )
             ]
         )
-        cls.logger = cls.locker.logger.getChild('compliance_operator.checker')
+        cls.logger = cls.locker.logger.getChild(
+            'kubernetes.compliance_operator.check.'
+            'ComplianceOperatorResultCheck'
+        )
         return cls
 
     def test_compliance_by_control_id(self):
         """Check all controls are compliant."""
         target_clusters = self.config.get(
-            'org.compliance_operator.target_cluster', {}
+            'org.kubernetes.compliance_operator.target_cluster', {}
         )
 
         evidence = {}
@@ -101,7 +104,9 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
             result = rule_result.findall('result')[0].text
             result_map[xccdf_id] = result
             self.logger.debug('%s: %s', xccdf_id, result)
-        mappings = self.config.get('org.compliance_operator.mappings', {})
+        mappings = self.config.get(
+            'org.kubernetes.compliance_operator.mappings', {}
+        )
         for std in mappings:
             for ctrl_id in mappings[std]:
                 for xccdf_id in mappings[std][ctrl_id]:
@@ -163,7 +168,7 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
 
         :returns: the report(s) generated for this check.
         """
-        return ['compliance_operator/compliance_operator_result.md']
+        return ['kubernetes/compliance_operator_result.md']
 
     def get_notification_message(self):
         """Notification for the non-customer key check."""

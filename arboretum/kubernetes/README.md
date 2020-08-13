@@ -29,10 +29,9 @@ Fetchers coming soon...
 * Behavior: Confirms that all of XCCDF results mapped from each control ID specified in the config are `pass`
 * Evidence depended upon:
   * Compliance Operator Result
-    * `raw/iks/iks_inventory_{accont}.json`
-    * Gathered by the `iks` provider [InventoryFetcher][InventoryFetcher]
+    * `raw/kubernetes/cluster_resource.json`
 * Expected configuration elements:
-  * `org.compliance_operator.mappings`
+  * `org.kubernetes.compliance_operator.mappings`
     * Dictionary (regulatory standard to target control ID) containing a list of XCCDF IDs
 * Expected configuration:
 ```json
@@ -59,3 +58,4 @@ from auditree_central.provider.compliance_operator.checks.test_compliance_check 
 
 
 [usage]: https://github.com/ComplianceAsCode/auditree-arboretum#usage
+[ComplianceOperatorResultCheck]: https://github.com/TBD
