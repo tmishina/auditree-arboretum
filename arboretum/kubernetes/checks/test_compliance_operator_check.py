@@ -154,12 +154,13 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
                             f'is `{result}`'
                         )
                     elif result == 'pass':
-                        self.add_warnings(
-                            f'debug: cluster {cluster["name"]}: '
-                            'XCCDF check was `pass`',
-                            f'Control ID `{std}`/`{ctrl_id}`: '
-                            f'XCCDF ID `{xccdf_id}` '
-                            f'is `{result}`'
+                        self.logger.info(
+                            'cluster %s: XCCDF check was `pass`'
+                            '(ctrl: %s/%s, xccdf: %s)',
+                            cluster['name'],
+                            std,
+                            ctrl_id,
+                            xccdf_id
                         )
 
     def get_reports(self):
