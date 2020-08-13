@@ -185,10 +185,9 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
             if cluster_type == 'kubernetes':
                 found = ec['name'] == cluster['name']
             elif cluster_type == 'ibm_cloud':
-                found = (
-                    ec['name'] == cluster['name']
-                    and ec['region'] == cluster['region']
-                )
+                found = ec['name'] == cluster['name']
+                if 'region' in cluster:
+                    found = found and ec['region'] == cluster['region']
             else:
                 self.add_failures(
                     'cluster_type is not supported', cluster_type
