@@ -34,21 +34,33 @@ Fetchers coming soon...
   * `org.kubernetes.compliance_operator.mappings`
     * Dictionary (regulatory standard to target control ID) containing a list of XCCDF IDs
 * Expected configuration:
-```json
-{
-  "org": {
-    "compliance_operator": {
-      "mappings": {
-        "nist": {
-          "AC-3": [
-            "xccdf_org.ssgproject.content_rule_api_server_admission_control_plugin_DenyEscalatingExec",
-            "xccdf_org.ssgproject.content_rule_api_server_insecure_allow_any_token",
-            "xccdf_org.ssgproject.content_rule_controller_disable_profiling",
-            "xccdf_org.ssgproject.content_rule_api_server_admission_control_plugin_AlwaysPullImages",
-            "xccdf_org.ssgproject.content_rule_etcd_peer_client_cert_auth"
-          ],
-          ...
-```
+  ```json
+  {
+    "org": {
+      "kubernetes": {
+        "compliance_operator": {
+          "mappings": {
+            "nist": {
+              "IA-5": [
+                "xccdf_org.ssgproject.content_rule_api_server_basic_auth",
+                "xccdf_org.ssgproject.content_rule_api_server_token_auth"
+              ]
+            }
+          },
+          "target_cluster": {
+            "ibm_cloud": {
+              "thinkdemo2020": [
+                {
+                  "name": "ROKS-OpenSCAP-1"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+  ```
 
 * Import statement:
 
