@@ -69,9 +69,8 @@ Fetchers coming soon...
 * Import statement:
 
 ```python
-from auditree_central.provider.compliance_operator.checks.test_compliance_check import ComplianceOperatorResultCheck
+from arboretum.kubernetes.checks.test_compliance_operator_check import ComplianceOperatorResultCheck
 ```
-
 
 [usage]: https://github.com/ComplianceAsCode/auditree-arboretum#usage
 [ComplianceOperatorResultCheck]: https://github.com/TBD
