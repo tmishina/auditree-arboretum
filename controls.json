@@ -13,5 +13,11 @@
     "auditree_evidence": {
       "auditree_control": ["arboretum.auditree"]
     }
+  },
+  "arboretum.kubernetes.checks.test_compliance_operator_check.ComplianceOperatorResultCheck": {
+    "auditree_evidence": {
+      "auditree_control": [
+        "arboretum.kubernetes.compliance_operator"
+    }
   }
 }
