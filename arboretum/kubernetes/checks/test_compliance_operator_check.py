@@ -49,83 +49,110 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
             'org.kubernetes.compliance_operator.target_cluster', {}
         )
 
-        evidence = {}
-        evidence_filepath = 'raw/kubernetes/cluster_resource.json'
-        with evidences(self.locker, evidence_filepath) as e:
-            evidence = json.loads(e.content)
-            if not evidence:
-                self.add_failures('No evidence found', evidence_filepath)
-                return
-
-        for cluster_type in target_clusters:
-            for account in target_clusters[cluster_type]:
-                for c in target_clusters[cluster_type][account]:
-                    cluster = self._search_cluster(
-                        evidence, cluster_type, account, c
+        self.logger.info('%d Clusters are targetted', len(target_clusters))
+        for category in target_clusters:
+            self.logger.info('Processing category "%s"', category)
+            evidence = {}
+            evidence_filepath = f'raw/{category}/cluster_resource.json'
+            with evidences(self.locker, evidence_filepath) as e:
+                evidence = json.loads(e.content)
+                if not evidence:
+                    msg = f'Evidence file found: {evidence_filepath}'
+                    self.logger.error(msg)
+                    self.add_failures(msg, category)
+                    return
+            for account in target_clusters[category]:
+                self.logger.info('Processing account "%s"', account)
+                for c in target_clusters[category][account]:
+                    self.logger.info(
+                        'Searching a target cluster "%s" in evidence',
+                        c['name']
                     )
+                    cluster = self._search_cluster(evidence, account, c)
                     if cluster:
-                        self._process_cluster(cluster, cluster_type, account)
+                        self.logger.info(
+                            'Processing a target cluster "%s"', c['name']
+                        )
+                        self._process_cluster(cluster, category, account)
+                    else:
+                        msg = (
+                            f'Target cluster {c["name"]} '
+                            'not found in evidence'
+                        )
+                        self.logger.error(msg)
+                        self.add_failures(msg, c['name'])
+                        return
 
     def _process_cluster(self, cluster, cluster_type, account):
-        xccdf = None
-        for resource in cluster['resources']:
-            if resource['kind'] == 'ConfigMap':
-                metadata = resource['metadata']
-                if ('labels' in metadata
-                        and 'compliance-scan' in metadata['labels']
-                        and 'results' in resource['data']):
-                    raw_data = resource['data']['results']
-                    xccdf = None
-                    if raw_data.startswith('<?xml'):
-                        xccdf = raw_data.encode('utf-8')
-                    else:
-                        xccdf = bz2.decompress(base64.b64decode(raw_data))
-                    break
-        if xccdf is None:
-            self.add_failures(
-                f'Target cluster `{cluster["name"]}`'
-                ' does not contain XCCDF result',
-                cluster['name']
-            )
+        xccdf = {}
+        if 'configmaps' not in cluster['resources']:
+            msg = 'No configmap exists in evidence'
+            self.logger.error(msg)
+            self.add_failures(msg, cluster['name'])
             return
+        for resource in cluster['resources']['configmaps']:
+            metadata = resource['metadata']
+            if ('labels' in metadata
+                    and 'compliance-scan' in metadata['labels']
+                    and 'results' in resource['data']):
+                raw_data = resource['data']['results']
+                if raw_data.startswith('<?xml'):
+                    xccdf[metadata['name']] = raw_data.encode('utf-8')
+                else:
+                    xccdf[metadata['name']] = bz2.decompress(
+                        base64.b64decode(raw_data)
+                    )
 
         # process XML here
         # remove default namespace due to the limitation of ElementTree
-        xml_string = re.sub(
-            r'\sxmlns="[^"]+"', '', xccdf.decode('utf-8'), count=1
-        )
-        root = ElementTree.fromstring(xml_string)
         result_map = {}
-        for child in root:
-            if child.tag != 'rule-result':
-                continue
-            rule_result = child
-            xccdf_id = rule_result.attrib['idref']
-            result = rule_result.findall('result')[0].text
-            result_map[xccdf_id] = result
-            self.logger.debug('%s: %s', xccdf_id, result)
-        mappings = self.config.get(
-            'org.kubernetes.compliance_operator.mappings', {}
-        )
-        for std in mappings:
-            for ctrl_id in mappings[std]:
-                for xccdf_id in mappings[std][ctrl_id]:
-                    if xccdf_id not in result_map:
+        for configmap in xccdf:
+            xml_string = re.sub(
+                r'\sxmlns="[^"]+"',
+                '',
+                xccdf[configmap].decode('utf-8'),
+                count=1
+            )
+            root = ElementTree.fromstring(xml_string)
+            for child in root:
+                if child.tag != 'rule-result':
+                    continue
+                rule_result = child
+                xccdf_id = rule_result.attrib['idref']
+                result = rule_result.findall('result')[0].text
+                if configmap not in result_map:
+                    result_map[configmap] = {}
+                result_map[configmap][xccdf_id] = result
+                self.logger.debug('%s: %s', xccdf_id, result)
+        osco_config = self.config.get('org.kubernetes.compliance_operator', {})
+        for def_id in osco_config['target_catalog']:
+            configmap = osco_config['target_catalog'][def_id]['configmap']
+            mappings = osco_config['target_catalog'][def_id]['mappings']
+            for ctrl_id in mappings:
+                for xccdf_id in mappings[ctrl_id]:
+                    configmaps = result_map.keys()
+                    self.logger.info('configmaps: %s', ','.join(configmaps))
+                    # tentative
+                    for c in configmaps:
+                        if c.startswith(configmap):
+                            configmap = c
+                            break
+                    if xccdf_id not in result_map[configmap]:
                         self.add_failures(
                             f'cluster {cluster["name"]}: '
                             'XCCDF check result '
                             'does not exist for a Control ID',
-                            f'Control ID `{std}`/`{ctrl_id}`: '
+                            f'Control ID `{def_id}`/`{ctrl_id}`: '
                             f'XCCDF ID `{xccdf_id}` '
                             f'does not exist.'
                         )
                         continue
-                    result = result_map[xccdf_id]
+                    result = result_map[configmap][xccdf_id]
                     if result == 'fail':
                         self.add_failures(
                             f'cluster {cluster["name"]}: '
                             'XCCDF check result is `fail`',
-                            f'Control ID `{std}`/`{ctrl_id}`: '
+                            f'Control ID `{def_id}`/`{ctrl_id}`: '
                             f'XCCDF ID `{xccdf_id}` '
                             f'is `fail`'
                         )
@@ -133,7 +160,7 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
                         self.add_warnings(
                             f'cluster {cluster["name"]}: '
                             'XCCDF check was skipped',
-                            f'Control ID `{std}`/`{ctrl_id}`: '
+                            f'Control ID `{def_id}`/`{ctrl_id}`: '
                             f'XCCDF ID `{xccdf_id}` '
                             f'is `{result}`'
                         )
@@ -141,7 +168,7 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
                         self.add_warnings(
                             f'cluster {cluster["name"]}: '
                             'XCCDF check was not selected',
-                            f'Control ID `{std}`/`{ctrl_id}`: '
+                            f'Control ID `{def_id}`/`{ctrl_id}`: '
                             f'XCCDF ID `{xccdf_id}` '
                             f'is `{result}`'
                         )
@@ -149,7 +176,7 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
                         self.add_warnings(
                             f'cluster {cluster["name"]}: '
                             'XCCDF check was not `pass`',
-                            f'Control ID `{std}`/`{ctrl_id}`: '
+                            f'Control ID `{def_id}`/`{ctrl_id}`: '
                             f'XCCDF ID `{xccdf_id}` '
                             f'is `{result}`'
                         )
@@ -158,7 +185,7 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
                             'cluster %s: XCCDF check was `pass`'
                             '(ctrl: %s/%s, xccdf: %s)',
                             cluster['name'],
-                            std,
+                            def_id,
                             ctrl_id,
                             xccdf_id
                         )
@@ -175,32 +202,20 @@ class ComplianceOperatorResultCheck(ComplianceCheck):
         """Notification for the non-customer key check."""
         return {'subtitle': 'compliance-operator result'}
 
-    def _search_cluster(self, evidence, cluster_type, account, cluster):
+    def _search_cluster(self, evidence, account, target_cluster):
 
-        if cluster_type not in evidence:
-            self.add_failures('No such cluster_type in evidence', cluster_type)
-            return None
-        if account not in evidence[cluster_type]:
-            self.add_failures(
-                'No such account in evidence', f'{cluster_type}/{account}'
-            )
+        if account not in evidence:
+            self.add_failures('No such account in evidence', f'{account}')
             return None
 
-        for ec in evidence[cluster_type][account]:
-            found = False
-            if cluster_type == 'kubernetes':
-                found = ec['name'] == cluster['name']
-            elif cluster_type == 'ibm_cloud':
-                found = ec['name'] == cluster['name']
-                if 'region' in cluster:
-                    found = found and ec['region'] == cluster['region']
-            else:
-                self.add_failures(
-                    'cluster_type is not supported', cluster_type
-                )
+        for ec in evidence[account]:
+            found = True
+            for k in target_cluster:
+                if k in ec:
+                    found = found and target_cluster[k] == ec[k]
             if found:
                 ComplianceOperatorResultCheck.logger.info(
-                    'target found: %s', cluster['name']
+                    'target found: %s', target_cluster['name']
                 )
                 return ec
         return None
